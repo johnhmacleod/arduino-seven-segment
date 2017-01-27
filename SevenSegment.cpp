@@ -166,19 +166,21 @@ struct driver {
 	boolean initialBit;
 	boolean cascadable;
 	boolean dataEnable;
+	boolean extraClocks;
 }
 _device;
 
 /*
  * Table of supported drivers stored in program memory
+ * Needs more work to find out which chips really need the extra clocks
  */
 PROGMEM const driver driverTable[] = {
-	{ "M5450", 34, false, true, true, false, false },
-	{ "M5451", 35, false, true, true, false, false },
-	{ "MM5452", 32, false, true, true, false, true },
-	{ "MM5453", 33, false, true, true, false, false },
-	{ "AY0438", 32, true, false, false, true, false },
-	{ "BT-M512RD-DR1", 35, false, true, true, false, true }
+	{ "M5450", 34, false, true, true, false, false, false },
+	{ "M5451", 35, false, true, true, false, false, false },
+	{ "MM5452", 32, false, true, true, false, true, false },
+	{ "MM5453", 33, false, true, true, false, false, true },
+	{ "AY0438", 32, true, false, false, true, false, true },
+	{ "BT-M512RD-DR1", 35, false, true, true, false, true, false }
 };
 
 // Driver table reference
@@ -645,6 +647,15 @@ void SevenSegment::pulseLoad(){
 }
 
 /*
+ * Extra Clocks - send 10 extra clock cycles
+ */
+
+void SevenSegment::extraClocks() {
+	for (int c = 0; c< 10; c++) {
+		pulseClock();
+	}
+}
+/*
  * Outputs data to screen :)
  */
 void SevenSegment::display(){
@@ -689,7 +700,11 @@ void SevenSegment::display(){
 	if (_device.pulseLoad){
 		pulseLoad();
 	}
-
+	
+	// Send extra clock cycles if needed
+	if (_device.extraClocks) {
+		extraClocks(); 
+		
 	// Set data enable to high
 	if (_device.dataEnable){
 		digitalWrite(_pinLoad, HIGH);
