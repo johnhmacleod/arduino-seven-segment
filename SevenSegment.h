@@ -82,6 +82,7 @@ class SevenSegment{
 		void clearData();
 		void pulseClock();
 		void pulseLoad();
+		void extraClocks();
 
 		uint8_t getSegmentByte(uint8_t character);
 		uint8_t getCharAtMaskCursor();
