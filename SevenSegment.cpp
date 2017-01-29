@@ -17,7 +17,7 @@
  * See the examples for usage
  */
 #include "SevenSegment.h"
-#include <avr/pgmspace.h> // Flash memory functions
+// #include <avr/pgmspace.h> // Flash memory functions
 
 /*
  * Character segment definitions are in the format GFEDCBA
@@ -172,14 +172,14 @@ _device;
 
 /*
  * Table of supported drivers stored in program memory
- * Needs more work to find out which chips really need the extra clocks
+ * Need more work to find out which driver chips need the extra clock cycles - at least the 5452/3 do
  */
 PROGMEM const driver driverTable[] = {
 	{ "M5450", 34, false, true, true, false, false, false },
 	{ "M5451", 35, false, true, true, false, false, false },
-	{ "MM5452", 32, false, true, true, false, true, false },
+	{ "MM5452", 32, false, true, true, false, false, true },
 	{ "MM5453", 33, false, true, true, false, false, true },
-	{ "AY0438", 32, true, false, false, true, false, true },
+	{ "AY0438", 32, true, false, false, true, false, false },
 	{ "BT-M512RD-DR1", 35, false, true, true, false, true, false }
 };
 
@@ -231,24 +231,29 @@ SevenSegment::SevenSegment(uint8_t clock, uint8_t data, uint8_t load) {
 boolean SevenSegment::begin(const char* driverName, const char* screenMask ){
 
 	// Temp buffer
-	char buffer[12];
-
+	static char buffer[12];
+//Serial.println("Here we are");
 	// Loop through driver table and find relevant driver
 	for (uint8_t i=0; i < DRIVER_COUNT; i++){
 
 		// Copy driver name to temp buffer
-		strcpy(buffer, (char*) pgm_read_word(&(pDriverTable[i].name)));
+
+		strcpy_P(buffer, pDriverTable[i].name);
 
 		// Is this driver the one specified?
 		if (strcmp(buffer, driverName)==0){
-
+			Serial.print("Driver found: ");
+			Serial.println(_device.name);
 			// Copy driver data into the struct in main memory
-			_device.name = (char*) pgm_read_word(&(pDriverTable[i].name));
-			_device.segments = (uint8_t) pgm_read_word(&(pDriverTable[i].segments));
-			_device.pulseLoad = (boolean) pgm_read_word(&(pDriverTable[i].pulseLoad));
-			_device.segmentsOrderInc = (boolean) pgm_read_word(&(pDriverTable[i].segmentsOrderInc));
-			_device.initialBit = (boolean) pgm_read_word(&(pDriverTable[i].initialBit));
-			_device.cascadable = (boolean) pgm_read_word(&(pDriverTable[i].cascadable));
+
+			_device.name = buffer;
+			_device.segments = (uint8_t) pgm_read_byte(&(pDriverTable[i].segments));
+			_device.pulseLoad = (boolean) pgm_read_byte(&(pDriverTable[i].pulseLoad));
+			_device.segmentsOrderInc = (boolean) pgm_read_byte(&(pDriverTable[i].segmentsOrderInc));
+			_device.initialBit = (boolean) pgm_read_byte(&(pDriverTable[i].initialBit));
+			_device.cascadable = (boolean) pgm_read_byte(&(pDriverTable[i].cascadable));
+			_device.extraClocks = (boolean) pgm_read_byte(&(pDriverTable[i].extraClocks));
+
 
 			// Store screen mask
 			strcpy(_mask, screenMask);
@@ -294,6 +299,21 @@ boolean SevenSegment::begin(const char* driverName, const char* screenMask ){
 	return false;
 }
 
+// Missing function from ESP8266 lib
+size_t strspn(const char *p, const char *s)
+{
+	int i, j;
+
+	for (i = 0; p[i]; i++) {
+		for (j = 0; s[j]; j++) {
+			if (s[j] == p[i])
+				break;
+		}
+		if (!s[j])
+			break;
+	}
+	return (i);
+}
 
 /*
  * Print unsigned numbers
@@ -629,7 +649,6 @@ boolean SevenSegment::calculateDisplayRange(){
 // ---------------------------------------------
 // Data pulsing
 // ---------------------------------------------
-
 /*
  * Pulse clock
  */
@@ -647,14 +666,15 @@ void SevenSegment::pulseLoad(){
 }
 
 /*
- * Extra Clocks - send 10 extra clock cycles
+ * Extra Clocks
  */
-
 void SevenSegment::extraClocks() {
-	for (int c = 0; c< 10; c++) {
-		pulseClock();
-	}
+for (int c = 0; c < 10; c++) {
+	pulseClock();
 }
+}
+	
+
 /*
  * Outputs data to screen :)
  */
@@ -674,8 +694,10 @@ void SevenSegment::display(){
 
 	// Send initial bit if required
 	if (_device.initialBit){
+//		extraClocks();
 		digitalWrite(_pinData, HIGH);
 		pulseClock();
+//		digitalWrite(_pinData, LOW);
 	}
 
 	// Write data segments
@@ -700,15 +722,17 @@ void SevenSegment::display(){
 	if (_device.pulseLoad){
 		pulseLoad();
 	}
-	
-	// Send extra clock cycles if needed
-	if (_device.extraClocks) {
-		extraClocks(); 
-		
+
 	// Set data enable to high
 	if (_device.dataEnable){
 		digitalWrite(_pinLoad, HIGH);
 	}
+	
+	if (_device.extraClocks) {
+		digitalWrite(_pinData, LOW);
+		extraClocks(); // The MM545x needs 36 clock cycles before it stores the data so send some more
+	}
+// else {Serial.print(_device.name); Serial.println(" - No Extra");}
 }
 
 /*
@@ -837,7 +861,7 @@ void SevenSegment::putChar(uint8_t c){
 
 #if SERIAL_MESSAGES_ON > 0
 	Serial.print("Char to print is ");
-	Serial.print(c, BYTE);Serial.print("(");Serial.print(c, DEC);Serial.print(")");
+	Serial.print(c, HEX);Serial.print("(");Serial.print(c, DEC);Serial.print(")");
 	Serial.print(" at index ");
 	Serial.print(index, DEC);
 	Serial.print(".  Maskchar is ");
